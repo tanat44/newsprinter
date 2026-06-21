@@ -1,4 +1,5 @@
 import axios from "axios";
+import { exec } from "child_process";
 import { format } from "date-fns/format";
 import { XMLParser } from "fast-xml-parser";
 import fs from "fs";
@@ -14,14 +15,41 @@ const dir = createFolder();
 main();
 
 async function main() {
+  let lastFolder: string | undefined;
+  const allFolders = fs.readdirSync(SAVE_FOLDERS);
+  if (allFolders.length > 1) lastFolder = allFolders[allFolders.length - 2];
+
   for (const feed of RSS_FEEDS) {
-    await processFeed(feed);
+    const filePath = await processFeed(feed);
+    const thisStat = fs.statSync(filePath);
+    const thisFileName = path.basename(filePath);
+
+    // if new pdf is the same as last file, skip printing
+    if (lastFolder) {
+      const lastFilePath = path.join(SAVE_FOLDERS, lastFolder, thisFileName);
+      const lastStat = fs.statSync(lastFilePath);
+      if (lastStat.size === thisStat.size) {
+        console.log("\tskip printing");
+        continue;
+      }
+    }
+
+    // printing
+    // use 'lpr' command to print pdf in macos
+    exec(`lpr ${filePath}`, (err, stdout, stderr) => {
+      if (err) {
+        console.log("cannot print", filePath);
+        return;
+      }
+      if (stdout) console.log(`stdout: ${stdout}`);
+      if (stderr) console.log(`stderr: ${stderr}`);
+    });
   }
 }
 
 async function processFeed(feed: Feed) {
   const link = await readFeedTopItem(feed);
-  await generatePdf(link, dir, feed);
+  return await generatePdf(link, dir, feed);
 }
 
 async function readFeedTopItem(feed: Feed) {
@@ -44,16 +72,17 @@ function createFolder() {
 
 async function generatePdf(url: string, dir: string, feed: Feed) {
   let browser: Browser | undefined;
+  const outputPath = path.join(dir, `${feed.name}.pdf`);
+
   try {
     browser = await chromium.launch({ headless: false });
 
     const page = await browser.newPage();
     console.log("loading:", url);
     await page.goto(url, {
-      timeout: 5000,
+      timeout: 10000,
+      waitUntil: "networkidle",
     });
-
-    const outputPath = path.join(dir, `${feed.name}.pdf`);
 
     // process content
     const content = await page.getByRole("article").innerHTML();
@@ -94,7 +123,8 @@ async function generatePdf(url: string, dir: string, feed: Feed) {
     console.error("Failed to generate PDF:", error);
   } finally {
     if (browser) {
-      // await browser.close();
+      await browser?.close();
     }
   }
+  return outputPath;
 }

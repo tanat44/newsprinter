@@ -1,5 +1,6 @@
 # newsprinter
 saves
+*.sqlite3
 
 # Logs
 logs

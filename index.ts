@@ -1,73 +1,86 @@
 import axios from "axios";
 import { exec } from "child_process";
 import { format } from "date-fns/format";
+import { configDotenv } from "dotenv";
 import { XMLParser } from "fast-xml-parser";
 import fs from "fs";
 import * as htmlparser from "node-html-parser";
 import path from "path";
 import { chromium, type Browser } from "playwright";
+import { dbHasNews, dbInsertNews, initDatabase } from "./db.ts";
 import { RSS_FEEDS, type Feed } from "./feed.ts";
-import { IGNORES } from "./ignorecontent.ts";
+import { PROCESSORS } from "./processor.ts";
 
 const SAVE_FOLDERS = "saves";
-const dir = createFolder();
+const { time, dir } = createFolder();
+const env = configDotenv().parsed;
+const debug = env?.DEBUG === "true";
 
 main();
 
 async function main() {
-  let lastFolder: string | undefined;
-  const allFolders = fs.readdirSync(SAVE_FOLDERS);
-  if (allFolders.length > 1) lastFolder = allFolders[allFolders.length - 2];
-
+  if (debug) console.log("DEBUG MODE");
+  initDatabase();
   for (const feed of RSS_FEEDS) {
-    const filePath = await processFeed(feed);
-    const thisStat = fs.statSync(filePath);
-    const thisFileName = path.basename(filePath);
+    const filePaths = await processFeed(feed);
+    for (const filePath of filePaths) {
+      if (!filePath) continue;
 
-    // if new pdf is the same as last file, skip printing
-    if (lastFolder) {
-      const lastFilePath = path.join(SAVE_FOLDERS, lastFolder, thisFileName);
-      const lastStat = fs.statSync(lastFilePath);
-      if (lastStat.size === thisStat.size) {
-        console.log("\tskip printing");
-        continue;
-      }
+      // printing
+      // use 'lpr' command to print pdf in macos
+      exec(`lpr ${filePath}`, (err, stdout, stderr) => {
+        if (err) {
+          console.log("cannot print", filePath);
+          return;
+        }
+        if (stdout) console.log(`stdout: ${stdout}`);
+        if (stderr) console.log(`stderr: ${stderr}`);
+      });
     }
-
-    // printing
-    // use 'lpr' command to print pdf in macos
-    exec(`lpr ${filePath}`, (err, stdout, stderr) => {
-      if (err) {
-        console.log("cannot print", filePath);
-        return;
-      }
-      if (stdout) console.log(`stdout: ${stdout}`);
-      if (stderr) console.log(`stderr: ${stderr}`);
-    });
   }
 }
 
 async function processFeed(feed: Feed) {
-  const link = await readFeedTopItem(feed);
-  return await generatePdf(link, dir, feed);
+  const urls = await readFeedTopItem(feed);
+
+  const filePaths: string[] = [];
+  for (const url of urls) {
+    console.log(feed.name, url);
+    if (dbHasNews(url) && !debug) {
+      console.log("\tskip: found news in db");
+      continue;
+    }
+    const filePath = await generatePdf(url, dir, feed);
+    const _success = dbInsertNews(time.getTime(), url, filePath);
+    filePaths.push(filePath);
+  }
+
+  return filePaths;
 }
 
-async function readFeedTopItem(feed: Feed) {
+async function readFeedTopItem(feed: Feed): Promise<string[]> {
   const res = await axios.get(feed.url);
   const parser = new XMLParser();
   const feedSpec = parser.parse(res.data);
-  const topItem = feedSpec.rss.channel.item[0];
-  return topItem.link;
+  const news = feedSpec.rss.channel.item;
+  if (!feed.newsCount) return [news[0].link];
+
+  const urls = [];
+  for (let i = 0; i < news.length && i < feed.newsCount; ++i) {
+    urls.push(news[i].link);
+  }
+  return urls;
 }
 
 function createFolder() {
-  const nowString = format(new Date(), "yyMMdd-HHmm");
+  const now = new Date();
+  const nowString = format(now, "yyMMdd-HHmm");
   const dir = path.join(SAVE_FOLDERS, nowString);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  return dir;
+  return { time: now, dir };
 }
 
 async function generatePdf(url: string, dir: string, feed: Feed) {
@@ -78,7 +91,7 @@ async function generatePdf(url: string, dir: string, feed: Feed) {
     browser = await chromium.launch({ headless: false });
 
     const page = await browser.newPage();
-    console.log("loading:", url);
+    console.log("\tloading page");
     await page.goto(url, {
       timeout: 10000,
       waitUntil: "networkidle",
@@ -88,11 +101,26 @@ async function generatePdf(url: string, dir: string, feed: Feed) {
     const content = await page.getByRole("article").innerHTML();
     const dom = htmlparser.parse(content);
 
-    // ignore doms
-    const ignores = IGNORES[feed.type];
-    for (const ignore of ignores) {
+    // remove doms
+    const processor = PROCESSORS[feed.type];
+    for (const ignore of processor.removeElements) {
       const targets = dom.querySelectorAll(ignore);
       targets.forEach((target) => target.remove());
+    }
+
+    // remove after dom
+    if (processor.removeAfterElement) {
+      const from = dom.querySelector(processor.removeAfterElement);
+      const parent = from?.parentNode;
+      if (parent) {
+        const index = parent.children.findIndex((x) => x === from);
+        if (index > -1) {
+          const toRemove = [];
+          for (let i = index; i < parent.children.length; ++i)
+            toRemove.push(parent.children.at(i));
+          for (const dom of toRemove) dom?.remove();
+        }
+      }
     }
 
     // resize images
@@ -122,7 +150,7 @@ async function generatePdf(url: string, dir: string, feed: Feed) {
   } catch (error) {
     console.error("Failed to generate PDF:", error);
   } finally {
-    if (browser) {
+    if (browser && !debug) {
       await browser?.close();
     }
   }

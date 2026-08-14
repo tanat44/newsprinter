@@ -60,8 +60,7 @@
 				<dict>
 					<key>COMMAND_STRING</key>
 					<string>cd /Users/tanut/Code/newsprinter
-/Users/tanut/.nvm/versions/node/v22.23.1/bin/node index.ts
-</string>
+/Users/tanut/.nvm/versions/node/v22.23.1/bin/node index.ts</string>
 					<key>CheckedForUserDefaultShell</key>
 					<true/>
 					<key>inputMethod</key>
@@ -86,7 +85,7 @@
 				<key>Class Name</key>
 				<string>RunShellScriptAction</string>
 				<key>InputUUID</key>
-				<string>05CA712C-771D-4961-877C-69C01638B097</string>
+				<string>EBEFB97A-C8E6-425C-9963-265A16D1FACA</string>
 				<key>Keywords</key>
 				<array>
 					<string>Shell</string>
@@ -96,11 +95,9 @@
 					<string>Unix</string>
 				</array>
 				<key>OutputUUID</key>
-				<string>15A01110-9FE0-4EF3-9D25-DBBD9C2744E2</string>
-				<key>ShowWhenRun</key>
-				<false/>
+				<string>B33AE3B3-4BAF-4EF7-B658-2AFF740C5B68</string>
 				<key>UUID</key>
-				<string>8EA1C31B-DAFC-4464-A2B2-D24338A2F513</string>
+				<string>FCCA0292-6377-4DFF-A71F-503EA1652D7B</string>
 				<key>UnlocalizedApplications</key>
 				<array>
 					<string>Automator</string>
@@ -176,14 +173,14 @@
 				<key>conversionLabel</key>
 				<integer>0</integer>
 				<key>isViewVisible</key>
-				<integer>0</integer>
+				<integer>1</integer>
 				<key>location</key>
-				<string>281.500000:111.000000</string>
+				<string>281.500000:252.000000</string>
 				<key>nibPath</key>
 				<string>/System/Library/Automator/Run Shell Script.action/Contents/Resources/Base.lproj/main.nib</string>
 			</dict>
 			<key>isViewVisible</key>
-			<integer>0</integer>
+			<integer>1</integer>
 		</dict>
 	</array>
 	<key>connectors</key>
@@ -191,7 +188,7 @@
 	<key>workflowMetaData</key>
 	<dict>
 		<key>workflowTypeIdentifier</key>
-		<string>com.apple.Automator.printPlugin</string>
+		<string>com.apple.Automator.application</string>
 	</dict>
 </dict>
 </plist>

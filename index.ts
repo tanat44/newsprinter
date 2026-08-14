@@ -94,7 +94,7 @@ async function generatePdf(url: string, dir: string, feed: Feed) {
     console.log("\tloading page");
     await page.goto(url, {
       timeout: 10000,
-      waitUntil: "networkidle",
+      waitUntil: "commit",
     });
 
     // process content

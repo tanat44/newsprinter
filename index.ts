@@ -24,7 +24,7 @@ async function main() {
   for (const feed of RSS_FEEDS) {
     const filePaths = await processFeed(feed);
     for (const filePath of filePaths) {
-      if (!filePath) continue;
+      if (!filePath || debug) continue;
 
       // printing
       // use 'lpr' command to print pdf in macos
